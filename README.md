@@ -2,7 +2,7 @@
 
 Fetch overture maps data
 
-Usage:
+### Usage:
 
 ```
 npx fetch-overture manhattan_buildings.zstd.parquet --theme=buildings --layer=building --location=Manhattan,NY
@@ -14,7 +14,7 @@ or by division id (Manhattan)
 npx fetch-overture manhattan_buildings.zstd.parquet --theme=buildings --layer=building --division_id=0856cf5cbfffffff01a25549e3bf0e4c
 ```
 
-## Overture themes and layers:
+### Overture themes and layers:
 
 ```
   npx fetch-overture manhattan_buildings.zstd.parquet --theme=<theme> --layer=<layer> --location=Manhattan,NY
