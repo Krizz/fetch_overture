@@ -1,6 +1,6 @@
 # fetch_overture
 
-Fetch overture maps data for regions by free text input or by Overture Maps division id.
+Fetch overture maps data for regions by text input or by Overture Maps division id.
 
 ![Manhattan](manhattan.jpg?raw=true)
 
