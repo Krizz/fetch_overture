@@ -1,6 +1,11 @@
 # fetch_overture
 
-Fetch overture maps data
+Fetch overture maps data for regions.
+
+### Requirements
+
+Install **Node.js**:
+[https://nodejs.org]
 
 ### Usage:
 
