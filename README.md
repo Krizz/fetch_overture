@@ -14,6 +14,12 @@ or by division id (Manhattan)
 npx fetch-overture manhattan_buildings.zstd.parquet --theme=buildings --layer=building --division_id=0856cf5cbfffffff01a25549e3bf0e4c
 ```
 
+**GeoJSON** format:
+
+```
+npx fetch-overture manhattan_buildings.geojson --theme=buildings --layer=building --division_id=0856cf5cbfffffff01a25549e3bf0e4c
+```
+
 ### Overture themes and layers:
 
 ```
