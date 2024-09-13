@@ -4,6 +4,8 @@ Fetch overture maps data for regions by text input or by Overture Maps division 
 
 ![Manhattan](manhattan.jpg?raw=true)
 
+As simple as:
+
 ```
   npx fetch_overture manhattan_buildings.geojson --theme=buildings --layer=building --location=Manhattan,NY
 ```
