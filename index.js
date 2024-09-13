@@ -204,7 +204,7 @@ if (!division_id && !location) {
   process.exit(1);
 }
 
-console.log(`Creating parquet extract for ${theme}/${layer}`);
+console.log(`Creating extract for ${theme}/${layer}`);
 
 const division = location
   ? await findDivision(location)
@@ -217,7 +217,7 @@ if (!division) {
 
 console.log(`Found division: ${division.name}`);
 
-console.log(`Creating parquet extract for ${division.name}`);
+console.log(`Creating extract for ${division.name}`);
 await createParquetExtract(
   division.id,
   division.geometry_geojson,
