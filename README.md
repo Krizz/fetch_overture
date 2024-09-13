@@ -5,7 +5,7 @@ Fetch overture maps data for regions by free text input or by Overture Maps divi
 ![Manhattan](manhattan.jpg?raw=true)
 
 ```
-  npx fetch-overture manhattan_buildings.geojson --theme=buildings --layer=building --location=Manhattan,NY
+  npx fetch_overture manhattan_buildings.geojson --theme=buildings --layer=building --location=Manhattan,NY
 ```
 
 ### Requirements
@@ -17,25 +17,25 @@ https://nodejs.org
 ### Usage:
 
 ```
-npx fetch-overture manhattan_buildings.zstd.parquet --theme=buildings --layer=building --location=Manhattan,NY
+npx fetch_overture manhattan_buildings.zstd.parquet --theme=buildings --layer=building --location=Manhattan,NY
 ```
 
 or by division id (Manhattan)
 
 ```
-npx fetch-overture manhattan_buildings.zstd.parquet --theme=buildings --layer=building --division_id=0856cf5cbfffffff01a25549e3bf0e4c
+npx fetch_overture manhattan_buildings.zstd.parquet --theme=buildings --layer=building --division_id=0856cf5cbfffffff01a25549e3bf0e4c
 ```
 
 **GeoJSON** format:
 
 ```
-npx fetch-overture manhattan_buildings.geojson --theme=buildings --layer=building --division_id=0856cf5cbfffffff01a25549e3bf0e4c
+npx fetch_overture manhattan_buildings.geojson --theme=buildings --layer=building --division_id=0856cf5cbfffffff01a25549e3bf0e4c
 ```
 
 ### Overture themes and layers:
 
 ```
-  npx fetch-overture manhattan_buildings.zstd.parquet --theme=<theme> --layer=<layer> --location=Manhattan,NY
+  npx fetch_overture manhattan_buildings.zstd.parquet --theme=<theme> --layer=<layer> --location=Manhattan,NY
 ```
 
 - **Theme:** "addresses"
