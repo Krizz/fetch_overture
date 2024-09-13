@@ -84,7 +84,6 @@ const findDivision = async (query) => {
   }
   const geocodeResult = geocodeResults[0];
   const geojson = geocodeResult.geojson;
-  const nominatimBoundingBox = geocodeResult.boundingbox;
   const bbox = turf.bbox(geojson);
   const bboxPolygon = turf.bboxPolygon(bbox);
   const center = turf.center(bboxPolygon);
@@ -155,7 +154,7 @@ if (!division_id && !location) {
   process.exit(1);
 }
 
-console.log(`Creating parquet extract for ${layer}/${theme}`);
+console.log(`Creating parquet extract for ${theme}/${layer}`);
 
 const division = location
   ? await findDivision(location)
