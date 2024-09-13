@@ -35,7 +35,7 @@ const createParquetExtract = (
 
     const outputIsGeoJSON = filePath.endsWith(".geojson");
     const settings = outputIsGeoJSON
-      ? `(FORMAT GDAL, DRIVER 'GeoJSONSeq', SRS 'EPSG:4326')`
+      ? `(FORMAT GDAL, DRIVER 'GeoJSON', SRS 'EPSG:4326')`
       : `(FORMAT 'parquet', COMPRESSION 'zstd')`;
 
     const getGeoJSONSelectFromSchema = (schema) => {
@@ -47,7 +47,7 @@ const createParquetExtract = (
         )
         .map((column) => column.column_name);
 
-      const geojsonExclude = ` EXCLUDE (${geojsonUnsupportedColumns.join(
+      const geojsonExclude = ` EXCLUDE (geometry, ${geojsonUnsupportedColumns.join(
         ", "
       )})`;
 
@@ -57,6 +57,7 @@ const createParquetExtract = (
 
       const select = `
         * ${geojsonExclude},
+        ST_GeomFromWKB(geometry) AS geometry,
         ${geojsonSelect}
       `;
 
