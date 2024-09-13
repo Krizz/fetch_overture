@@ -4,6 +4,10 @@ Fetch overture maps data for regions by free text input or by Overture Maps divi
 
 ![Manhattan](manhattan.jpg?raw=true)
 
+```
+  npx fetch-overture manhattan_buildings.geojson --theme=buildings --layer=building --location=Manhattan,NY
+```
+
 ### Requirements
 
 Install **Node.js**:
