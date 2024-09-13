@@ -43,7 +43,8 @@ const createParquetExtract = (
         .filter(
           (column) =>
             column.column_type.startsWith("STRUCT") ||
-            column.column_type.startsWith("MAP")
+            column.column_type.startsWith("MAP") ||
+            column.column_type.startsWith("VARCHAR[")
         )
         .map((column) => column.column_name);
 
@@ -229,5 +230,5 @@ await createParquetExtract(
   layer,
   filePath
 );
-console.log(`Created parquet extract for ${division.name} at ${filePath}`);
+console.log(`Created extract for ${division.name} at ${filePath}`);
 db.close();
