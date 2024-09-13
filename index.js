@@ -6,6 +6,20 @@ import * as turf from "@turf/turf";
 const db = new duckdb.Database(":memory:");
 const OVERTURE_VERSION = process.env.OVERTURE_VERSION ?? "2024-08-20.0";
 
+const describeParquet = (parquetPath) =>
+  new Promise((resolve, reject) => {
+    const sql = `
+    DESCRIBE SELECT * FROM '${parquetPath}';
+  `;
+    db.all(sql, (err, results) => {
+      if (err) {
+        return reject(err);
+      }
+
+      return resolve(results);
+    });
+  });
+
 const createParquetExtract = (
   divisionId,
   geoJSONString,
@@ -13,21 +27,56 @@ const createParquetExtract = (
   type,
   filePath
 ) =>
-  new Promise((resolve, reject) => {
+  new Promise(async (resolve, reject) => {
     const bbox = turf.bbox(JSON.parse(geoJSONString));
+    const parquetPath = `s3://overturemaps-us-west-2/release/${OVERTURE_VERSION}/theme=${theme}/type=${type}/*.parquet`;
+
+    const schema = await describeParquet(parquetPath);
+
+    const outputIsGeoJSON = filePath.endsWith(".geojson");
+    const settings = outputIsGeoJSON
+      ? `(FORMAT GDAL, DRIVER 'GeoJSONSeq', SRS 'EPSG:4326')`
+      : `(FORMAT 'parquet', COMPRESSION 'zstd')`;
+
+    const getGeoJSONSelectFromSchema = (schema) => {
+      const geojsonUnsupportedColumns = schema
+        .filter(
+          (column) =>
+            column.column_type.startsWith("STRUCT") ||
+            column.column_type.startsWith("MAP")
+        )
+        .map((column) => column.column_name);
+
+      const geojsonExclude = ` EXCLUDE (${geojsonUnsupportedColumns.join(
+        ", "
+      )})`;
+
+      const geojsonSelect = geojsonUnsupportedColumns
+        .map((column) => `${column}::json AS ${column}`)
+        .join(", ");
+
+      const select = `
+        * ${geojsonExclude},
+        ${geojsonSelect}
+      `;
+
+      return select;
+    };
+
+    const select = outputIsGeoJSON ? getGeoJSONSelectFromSchema(schema) : "*";
 
     const sql = `
       INSTALL spatial;LOAD spatial;SET preserve_insertion_order=false;
       COPY (
         SELECT
-        *
-        FROM read_parquet('s3://overturemaps-us-west-2/release/${OVERTURE_VERSION}/theme=${theme}/type=${type}/*.parquet')
+        ${select}
+        FROM read_parquet('${parquetPath}')
         WHERE
         bbox.xmin BETWEEN ${bbox[0]} AND ${bbox[2]} AND
         bbox.ymin BETWEEN  ${bbox[1]} AND  ${bbox[3]}
         AND st_intersects(ST_GeomFromWKB(geometry), ST_GeomFromGeoJSON('${geoJSONString}'))
 
-      ) TO '${filePath}' (FORMAT 'parquet', COMPRESSION 'zstd');
+      ) TO '${filePath}' ${settings};
     `;
 
     db.all(sql, (err, results) => {
