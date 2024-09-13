@@ -2,12 +2,14 @@
 
 Fetch overture maps data
 
-```
-fetch-overture --layer=division --theme=divisions --location=Manhattan,NY
-```
-
-or by division id
+Usage:
 
 ```
-fetch-overture --layer=division --theme=divisions --division_id=0856cf5cbfffffff01a25549e3bf0e4c
+npx fetch-overture manhattan.zstd.parquet --theme=buildings --layer=building --location=Manhattan,NY
+```
+
+or by division id (Manhattan)
+
+```
+npx fetch-overture manhattan.zstd.parquet --theme=buildings --layer=building --division_id=0856cf5cbfffffff01a25549e3bf0e4c
 ```

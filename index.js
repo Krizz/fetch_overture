@@ -1,7 +1,8 @@
 #! /usr/bin/env node
 
-const duckdb = require("duckdb");
-const turf = require("@turf/turf");
+import duckdb from "duckdb";
+import * as turf from "@turf/turf";
+
 const db = new duckdb.Database(":memory:");
 const OVERTURE_VERSION = process.env.OVERTURE_VERSION ?? "2024-08-20.0";
 
@@ -10,10 +11,9 @@ const createParquetExtract = (
   geoJSONString,
   theme,
   type,
-  outPath = "./"
+  filePath
 ) =>
   new Promise((resolve, reject) => {
-    const fileName = `${outPath}${divisionId}_${theme}_${type}.zstd.parquet`;
     const bbox = turf.bbox(JSON.parse(geoJSONString));
 
     const sql = `
@@ -27,7 +27,7 @@ const createParquetExtract = (
         bbox.ymin BETWEEN  ${bbox[1]} AND  ${bbox[3]}
         AND st_intersects(ST_GeomFromWKB(geometry), ST_GeomFromGeoJSON('${geoJSONString}'))
 
-      ) TO '${fileName}' (FORMAT 'parquet', COMPRESSION 'zstd');
+      ) TO '${filePath}' (FORMAT 'parquet', COMPRESSION 'zstd');
     `;
 
     db.all(sql, (err, results) => {
@@ -35,7 +35,7 @@ const createParquetExtract = (
         return reject(err);
       }
 
-      return resolve(fileName);
+      return resolve(filePath);
     });
   });
 
@@ -114,6 +114,7 @@ const getDivisionById = (id) =>
       WHERE id = '${id}'
       LIMIT 1;
     `;
+
     db.all(sql, (err, results) => {
       if (err) {
         return reject(err);
@@ -124,7 +125,7 @@ const getDivisionById = (id) =>
   });
 
 const parseArgs = () => {
-  const args = process.argv.slice(2);
+  const args = process.argv.slice(3);
   return Object.fromEntries(
     args
       .filter((arg) => arg.startsWith("--"))
@@ -135,47 +136,45 @@ const parseArgs = () => {
   );
 };
 
-(async () => {
-  const { layer, theme, division_id, location } = parseArgs();
+const filePath = process.argv[2];
 
-  if (!theme) {
-    console.error("Missing argument: --theme=<theme>");
-    process.exit(1);
-  }
+const { layer, theme, division_id, location } = parseArgs();
 
-  if (!layer) {
-    console.error("Missing argument: --layer=<layer>");
-    process.exit(1);
-  }
+if (!theme) {
+  console.error("Missing argument: --theme=<theme>");
+  process.exit(1);
+}
 
-  if (!division_id && !location) {
-    console.error(
-      "Missing argument: --division_id=<id> or --location=<address>"
-    );
-    process.exit(1);
-  }
+if (!layer) {
+  console.error("Missing argument: --layer=<layer>");
+  process.exit(1);
+}
 
-  console.log(`Creating parquet extract for ${layer}/${theme}`);
+if (!division_id && !location) {
+  console.error("Missing argument: --division_id=<id> or --location=<address>");
+  process.exit(1);
+}
 
-  const division = location
-    ? await findDivision(location)
-    : await getDivisionById(division_id);
+console.log(`Creating parquet extract for ${layer}/${theme}`);
 
-  if (!division) {
-    console.error(`Division "${location || division_id}" not found`);
-    process.exit(1);
-  }
+const division = location
+  ? await findDivision(location)
+  : await getDivisionById(division_id);
 
-  console.log(`Found division: ${division.name}`);
+if (!division) {
+  console.error(`Division "${location || division_id}" not found`);
+  process.exit(1);
+}
 
-  console.log(`Creating parquet extract for ${division.name}`);
-  const filePath = await createParquetExtract(
-    division.id,
-    division.geometry_geojson,
-    theme,
-    layer,
-    "./data/"
-  );
-  console.log(`Created parquet extract for ${division.name} at ${filePath}`);
-  db.close();
-})();
+console.log(`Found division: ${division.name}`);
+
+console.log(`Creating parquet extract for ${division.name}`);
+await createParquetExtract(
+  division.id,
+  division.geometry_geojson,
+  theme,
+  layer,
+  filePath
+);
+console.log(`Created parquet extract for ${division.name} at ${filePath}`);
+db.close();

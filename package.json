@@ -1,12 +1,16 @@
 {
   "name": "fetch_overture",
+  "type": "module",
   "version": "1.0.0",
+  "keywords": [
+    "overture"
+  ],
   "description": "Fetch overture maps data",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "author": "Kristjan Tulmin <kriz@live.com>",
   "license": "MIT",
   "dependencies": {
     "@turf/turf": "^7.1.0",
