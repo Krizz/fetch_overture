@@ -2,10 +2,13 @@
 
 Fetch overture maps data for regions.
 
+![Manhattan](manhattan.jpg?raw=true)
+
 ### Requirements
 
 Install **Node.js**:
-[https://nodejs.org]
+
+https://nodejs.org
 
 ### Usage:
 
