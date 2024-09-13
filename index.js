@@ -91,7 +91,11 @@ const createParquetExtract = (
 
 const geocode = (address) => {
   const url = `https://nominatim.openstreetmap.org/search?q=${address}&format=jsonv2&limit=1&polygon_geojson=1`;
-  return fetch(url).then((response) => response.json());
+  return fetch(url, {
+    headers: {
+      "accept-language": "en",
+    },
+  }).then((response) => response.json());
 };
 
 const getDivision = (name, bbox) =>
@@ -137,10 +141,10 @@ const findDivision = async (query) => {
   const bbox = turf.bbox(geojson);
   const bboxPolygon = turf.bboxPolygon(bbox);
   const center = turf.center(bboxPolygon);
-  const doubledPolygon = turf.transformScale(bboxPolygon, 2, {
+  const scaledPolygon = turf.transformScale(bboxPolygon, 2, {
     origin: center,
   });
-  const newBbox = turf.bbox(doubledPolygon);
+  const newBbox = turf.bbox(scaledPolygon);
 
   const name = geocodeResult.name;
   const division = await getDivision(name, newBbox);
