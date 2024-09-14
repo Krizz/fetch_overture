@@ -20,13 +20,7 @@ const describeParquet = (parquetPath) =>
     });
   });
 
-const createParquetExtract = (
-  divisionId,
-  geoJSONString,
-  theme,
-  type,
-  filePath
-) =>
+const createParquetExtract = (geoJSONString, theme, type, filePath) =>
   new Promise(async (resolve, reject) => {
     const bbox = turf.bbox(JSON.parse(geoJSONString));
     const parquetPath = `s3://overturemaps-us-west-2/release/${OVERTURE_VERSION}/theme=${theme}/type=${type}/*.parquet`;
@@ -137,19 +131,14 @@ const findDivision = async (query) => {
   if (!geocodeResults.length) {
     return null;
   }
+
   const geocodeResult = geocodeResults[0];
   const geojson = geocodeResult.geojson;
-  const bbox = turf.bbox(geojson);
-  const bboxPolygon = turf.bboxPolygon(bbox);
-  const center = turf.center(bboxPolygon);
-  const scaledPolygon = turf.transformScale(bboxPolygon, 2, {
-    origin: center,
-  });
-  const newBbox = turf.bbox(scaledPolygon);
 
-  const name = geocodeResult.name;
-  const division = await getDivision(name, newBbox);
-  return division;
+  return {
+    name: geocodeResults[0].display_name,
+    geometry_geojson: JSON.stringify(geojson),
+  };
 };
 
 const getDivisionById = (id) =>
@@ -223,12 +212,6 @@ if (!division) {
 console.log(`Found division: ${division.name}`);
 
 console.log(`Creating extract for ${division.name}`);
-await createParquetExtract(
-  division.id,
-  division.geometry_geojson,
-  theme,
-  layer,
-  filePath
-);
+await createParquetExtract(division.geometry_geojson, theme, layer, filePath);
 console.log(`Created extract for ${division.name} at ${filePath}`);
 db.close();
