@@ -2,7 +2,6 @@
 
 import duckdb from "duckdb";
 import * as turf from "@turf/turf";
-
 const db = new duckdb.Database(":memory:");
 const OVERTURE_VERSION = process.env.OVERTURE_VERSION ?? "2024-08-20.0";
 
@@ -181,15 +180,17 @@ const parseArgs = () => {
 
 const filePath = process.argv[2];
 
-const { layer, theme, division_id, location } = parseArgs();
+const args = parseArgs();
+const { theme, division_id, location, layer } = args;
+const type = args.type || layer; // type is an alias for layer
 
 if (!theme) {
   console.error("Missing argument: --theme=<theme>");
   process.exit(1);
 }
 
-if (!layer) {
-  console.error("Missing argument: --layer=<layer>");
+if (!type) {
+  console.error("Missing argument: --type=<type>");
   process.exit(1);
 }
 
@@ -198,7 +199,7 @@ if (!division_id && !location) {
   process.exit(1);
 }
 
-console.log(`Creating extract for ${theme}/${layer}`);
+console.log(`Creating extract for ${theme}/${type}`);
 
 const division = location
   ? await findDivision(location)
@@ -212,6 +213,6 @@ if (!division) {
 console.log(`Found division: ${division.name}`);
 
 console.log(`Creating extract for ${division.name}`);
-await createParquetExtract(division.geometry_geojson, theme, layer, filePath);
+await createParquetExtract(division.geometry_geojson, theme, type, filePath);
 console.log(`Created extract for ${division.name} at ${filePath}`);
 db.close();
