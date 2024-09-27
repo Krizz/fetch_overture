@@ -1,15 +1,11 @@
 #! /usr/bin/env node
 
-import duckdb from "duckdb";
-import * as turf from "@turf/turf";
-const db = new duckdb.Database(":memory:");
-const OVERTURE_VERSION = process.env.OVERTURE_VERSION ?? "2024-08-20.0";
+import duckdb from 'duckdb';
+const db = new duckdb.Database(':memory:');
+const OVERTURE_VERSION = process.env.OVERTURE_VERSION ?? '2024-08-20.0';
 
-const describeParquet = (parquetPath) =>
+const queryDuckDB = sql =>
   new Promise((resolve, reject) => {
-    const sql = `
-    DESCRIBE SELECT * FROM '${parquetPath}';
-  `;
     db.all(sql, (err, results) => {
       if (err) {
         return reject(err);
@@ -19,113 +15,97 @@ const describeParquet = (parquetPath) =>
     });
   });
 
-const createParquetExtract = (geoJSONString, theme, type, filePath) =>
-  new Promise(async (resolve, reject) => {
-    const bbox = turf.bbox(JSON.parse(geoJSONString));
-    const parquetPath = `s3://overturemaps-us-west-2/release/${OVERTURE_VERSION}/theme=${theme}/type=${type}/*.parquet`;
+const describeParquet = parquetPath =>
+  queryDuckDB(`DESCRIBE SELECT * FROM '${parquetPath}';`);
 
-    const schema = await describeParquet(parquetPath);
+const getBBox = async geoJSONString => {
+  const sql = `
+    INSTALL spatial;LOAD spatial;
+    WITH bounds AS (
+      SELECT
+      ST_Envelope(ST_GeomFromGeoJSON('${geoJSONString}')) AS envelope
+    )
+    SELECT
+    ST_XMin(envelope) AS xmin,
+    ST_YMin(envelope) AS ymin,
+    ST_XMax(envelope) AS xmax,
+    ST_YMax(envelope) AS ymax
+    FROM bounds;
+  `;
 
-    const outputIsGeoJSON = filePath.endsWith(".geojson");
-    const settings = outputIsGeoJSON
-      ? `(FORMAT GDAL, DRIVER 'GeoJSON', SRS 'EPSG:4326')`
-      : `(FORMAT 'parquet', COMPRESSION 'zstd')`;
+  const results = await queryDuckDB(sql);
+  return results[0];
+};
 
-    const getGeoJSONSelectFromSchema = (schema) => {
-      const geojsonUnsupportedColumns = schema
-        .filter(
-          (column) =>
-            column.column_type.startsWith("STRUCT") ||
-            column.column_type.startsWith("MAP") ||
-            column.column_type.startsWith("VARCHAR[")
-        )
-        .map((column) => column.column_name);
+const createParquetExtract = async (geoJSONString, theme, type, filePath) => {
+  const bbox = await getBBox(geoJSONString);
+  const parquetPath = `s3://overturemaps-us-west-2/release/${OVERTURE_VERSION}/theme=${theme}/type=${type}/*.parquet`;
 
-      const geojsonExclude = ` EXCLUDE (geometry, ${geojsonUnsupportedColumns.join(
-        ", "
-      )})`;
+  const schema = await describeParquet(parquetPath);
 
-      const geojsonSelect = geojsonUnsupportedColumns
-        .map((column) => `${column}::json AS ${column}`)
-        .join(", ");
+  const outputIsGeoJSON = filePath.endsWith('.geojson');
+  const settings = outputIsGeoJSON
+    ? `(FORMAT GDAL, DRIVER 'GeoJSON', SRS 'EPSG:4326')`
+    : `(FORMAT 'parquet', COMPRESSION 'zstd')`;
 
-      const select = `
+  const getGeoJSONSelectFromSchema = schema => {
+    const geojsonUnsupportedColumns = schema
+      .filter(
+        column =>
+          column.column_type.startsWith('STRUCT') ||
+          column.column_type.startsWith('MAP') ||
+          column.column_type.startsWith('VARCHAR[')
+      )
+      .map(column => column.column_name);
+
+    const geojsonExclude = ` EXCLUDE (geometry, ${geojsonUnsupportedColumns.join(
+      ', '
+    )})`;
+
+    const geojsonSelect = geojsonUnsupportedColumns
+      .map(column => `${column}::json AS ${column}`)
+      .join(', ');
+
+    const select = `
         * ${geojsonExclude},
-        ST_GeomFromWKB(geometry) AS geometry,
+        geometry,
         ${geojsonSelect}
       `;
 
-      return select;
-    };
+    return select;
+  };
 
-    const select = outputIsGeoJSON ? getGeoJSONSelectFromSchema(schema) : "*";
+  const select = outputIsGeoJSON ? getGeoJSONSelectFromSchema(schema) : '*';
 
-    const sql = `
+  const sql = `
+      SET enable_progress_bar = true;
       INSTALL spatial;LOAD spatial;SET preserve_insertion_order=false;
       COPY (
         SELECT
         ${select}
         FROM read_parquet('${parquetPath}')
         WHERE
-        bbox.xmin BETWEEN ${bbox[0]} AND ${bbox[2]} AND
-        bbox.ymin BETWEEN  ${bbox[1]} AND  ${bbox[3]}
-        AND st_intersects(ST_GeomFromWKB(geometry), ST_GeomFromGeoJSON('${geoJSONString}'))
+        bbox.xmin BETWEEN ${bbox.xmin} AND ${bbox.xmax} AND
+        bbox.ymin BETWEEN  ${bbox.ymin} AND  ${bbox.ymax}
+        AND st_intersects(geometry, ST_GeomFromGeoJSON('${geoJSONString}'))
 
       ) TO '${filePath}' ${settings};
     `;
 
-    db.all(sql, (err, results) => {
-      if (err) {
-        return reject(err);
-      }
+  await queryDuckDB(sql);
+  return filePath;
+};
 
-      return resolve(filePath);
-    });
-  });
-
-const geocode = (address) => {
+const geocode = address => {
   const url = `https://nominatim.openstreetmap.org/search?q=${address}&format=jsonv2&limit=1&polygon_geojson=1`;
   return fetch(url, {
     headers: {
-      "accept-language": "en",
-    },
-  }).then((response) => response.json());
+      'accept-language': 'en'
+    }
+  }).then(response => response.json());
 };
 
-const getDivision = (name, bbox) =>
-  new Promise((resolve, reject) => {
-    const sql = `
-      INSTALL spatial;LOAD spatial;SET preserve_insertion_order=false;
-      SELECT
-      id,
-      COALESCE(names.common['en'][1], names.primary) as name,
-      bbox,
-      subtype,
-      class,
-      ST_ASGeoJSON(ST_GeomFromWKB(geometry)) AS geometry_geojson
-      FROM read_parquet('s3://overturemaps-us-west-2/release/2024-07-22.0/theme=divisions/type=division_area/*.parquet')
-      WHERE
-      bbox.xmin BETWEEN ${bbox[0]} AND ${bbox[2]} AND
-      bbox.ymin BETWEEN  ${bbox[1]} AND  ${bbox[3]}
-      AND
-      st_intersects(
-        st_envelope(ST_GeomFromWKB(geometry)),
-        ST_MakeEnvelope(${bbox})
-      )
-      ORDER BY jaro_similarity(COALESCE(names.common['en'][1], names.primary), '${name}') DESC
-      LIMIT 1;
-    `;
-
-    db.all(sql, (err, results) => {
-      if (err) {
-        return reject(err);
-      }
-
-      return resolve(results[0]);
-    });
-  });
-
-const findDivision = async (query) => {
+const findDivision = async query => {
   const geocodeResults = await geocode(query);
   if (!geocodeResults.length) {
     return null;
@@ -136,43 +116,36 @@ const findDivision = async (query) => {
 
   return {
     name: geocodeResults[0].display_name,
-    geometry_geojson: JSON.stringify(geojson),
+    geometry_geojson: JSON.stringify(geojson)
   };
 };
 
-const getDivisionById = (id) =>
-  new Promise((resolve, reject) => {
-    const sql = `
-      INSTALL spatial;
-      LOAD spatial;
-      SELECT
-      id,
-      COALESCE(names.common['en'][1], names.primary) as name,
-      bbox,
-      subtype,
-      class,
-      ST_ASGeoJSON(ST_GeomFromWKB(geometry)) AS geometry_geojson
-      FROM read_parquet('s3://overturemaps-us-west-2/release/2024-07-22.0/theme=divisions/type=division_area/*.parquet')
-      WHERE id = '${id}'
-      LIMIT 1;
-    `;
-
-    db.all(sql, (err, results) => {
-      if (err) {
-        return reject(err);
-      }
-
-      return resolve(results[0]);
-    });
-  });
+const getDivisionById = async id => {
+  const sql = `
+    INSTALL spatial;
+    LOAD spatial;
+    SELECT
+    id,
+    COALESCE(names.common['en'][1], names.primary) as name,
+    bbox,
+    subtype,
+    class,
+    ST_ASGeoJSON(geometry) AS geometry_geojson
+    FROM read_parquet('s3://overturemaps-us-west-2/release/2024-07-22.0/theme=divisions/type=division_area/*.parquet')
+    WHERE id = '${id}'
+    LIMIT 1;
+  `;
+  const results = await queryDuckDB(sql);
+  return results[0];
+};
 
 const parseArgs = () => {
   const args = process.argv.slice(3);
   return Object.fromEntries(
     args
-      .filter((arg) => arg.startsWith("--"))
-      .map((arg) => {
-        const [key, value] = arg.slice(2).split("=");
+      .filter(arg => arg.startsWith('--'))
+      .map(arg => {
+        const [key, value] = arg.slice(2).split('=');
         return [key, value];
       })
   );
@@ -185,17 +158,17 @@ const { theme, division_id, location, layer } = args;
 const type = args.type || layer; // type is an alias for layer
 
 if (!theme) {
-  console.error("Missing argument: --theme=<theme>");
+  console.error('Missing argument: --theme=<theme>');
   process.exit(1);
 }
 
 if (!type) {
-  console.error("Missing argument: --type=<type>");
+  console.error('Missing argument: --type=<type>');
   process.exit(1);
 }
 
 if (!division_id && !location) {
-  console.error("Missing argument: --division_id=<id> or --location=<address>");
+  console.error('Missing argument: --division_id=<id> or --location=<address>');
   process.exit(1);
 }
 
@@ -211,7 +184,6 @@ if (!division) {
 }
 
 console.log(`Found division: ${division.name}`);
-
 console.log(`Creating extract for ${division.name}`);
 await createParquetExtract(division.geometry_geojson, theme, type, filePath);
 console.log(`Created extract for ${division.name} at ${filePath}`);

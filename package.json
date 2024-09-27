@@ -13,8 +13,7 @@
   "author": "Kristjan Tulmin <kriz@live.com>",
   "license": "MIT",
   "dependencies": {
-    "@turf/turf": "^7.1.0",
-    "duckdb": "^1.0.0"
+    "duckdb": "^1.1.0"
   },
   "bin": {
     "fetch_overture": "index.js"
