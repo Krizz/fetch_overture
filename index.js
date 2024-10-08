@@ -1,8 +1,13 @@
 #! /usr/bin/env node
 
 import duckdb from 'duckdb';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const db = new duckdb.Database(':memory:');
 const OVERTURE_VERSION = process.env.OVERTURE_VERSION ?? '2024-08-20.0';
+
+const isGERSId = str => /^[a-f0-9]{32}$/.test(str);
 
 const queryDuckDB = sql =>
   new Promise((resolve, reject) => {
@@ -37,7 +42,12 @@ const getBBox = async geoJSONString => {
   return results[0];
 };
 
-const createParquetExtract = async (geoJSONString, theme, type, filePath) => {
+export const createParquetExtract = async (
+  geoJSONString,
+  theme,
+  type,
+  filePath
+) => {
   const bbox = await getBBox(geoJSONString);
   const parquetPath = `s3://overturemaps-us-west-2/release/${OVERTURE_VERSION}/theme=${theme}/type=${type}/*.parquet`;
 
@@ -78,7 +88,6 @@ const createParquetExtract = async (geoJSONString, theme, type, filePath) => {
   const select = outputIsGeoJSON ? getGeoJSONSelectFromSchema(schema) : '*';
 
   const sql = `
-      SET enable_progress_bar = true;
       INSTALL spatial;LOAD spatial;SET preserve_insertion_order=false;
       COPY (
         SELECT
@@ -105,7 +114,7 @@ const geocode = address => {
   }).then(response => response.json());
 };
 
-const findDivision = async query => {
+export const findDivision = async query => {
   const geocodeResults = await geocode(query);
   if (!geocodeResults.length) {
     return null;
@@ -120,7 +129,7 @@ const findDivision = async query => {
   };
 };
 
-const getDivisionById = async id => {
+export const getDivisionById = async id => {
   const sql = `
     INSTALL spatial;
     LOAD spatial;
@@ -153,38 +162,90 @@ const parseArgs = () => {
 
 const filePath = process.argv[2];
 
-const args = parseArgs();
-const { theme, division_id, location, layer } = args;
-const type = args.type || layer; // type is an alias for layer
+const runCLI = async () => {
+  const args = parseArgs();
+  const { theme, division_id, location, layer } = args;
+  const type = args.type || layer; // type is an alias for layer
 
-if (!theme) {
-  console.error('Missing argument: --theme=<theme>');
-  process.exit(1);
+  if (!theme) {
+    console.error('Missing argument: --theme=<theme>');
+    process.exit(1);
+  }
+
+  if (!type) {
+    console.error('Missing argument: --type=<type>');
+    process.exit(1);
+  }
+
+  if (!division_id && !location) {
+    console.error(
+      'Missing argument: --division_id=<id> or --location=<address>'
+    );
+    process.exit(1);
+  }
+
+  console.log(`Creating extract for ${theme}/${type}`);
+
+  const division = location
+    ? await findDivision(location)
+    : await getDivisionById(division_id);
+
+  if (!division) {
+    console.error(`Division "${location || division_id}" not found`);
+    process.exit(1);
+  }
+
+  console.log(`Found division: ${division.name}`);
+  console.log(`Creating extract for ${division.name}`);
+  await createParquetExtract(division.geometry_geojson, theme, type, filePath);
+  console.log(`Created extract for ${division.name} at ${filePath}`);
+  db.close();
+};
+
+const fetchOverture = async ({ location, theme, type, outputFilePath }) => {
+  if (!location) {
+    throw new Error('Missing location');
+  }
+
+  if (!theme) {
+    throw new Error('Missing Overture theme (buildings, divisions, etc.)');
+  }
+
+  if (!type) {
+    throw new Error(
+      'Missing Overeture type (building, building_part, division, etc.)'
+    );
+  }
+
+  const isGERS = isGERSId(location);
+  const division = isGERS
+    ? await getDivisionById(location)
+    : await findDivision(location);
+
+  if (!division) {
+    console.error(`Division "${location}" not found`);
+    return null;
+  }
+
+  await createParquetExtract(
+    division.geometry_geojson,
+    theme,
+    type,
+    outputFilePath
+  );
+
+  return {
+    name: division.name,
+    filePath: outputFilePath,
+    division
+  };
+};
+
+const indexFilePath = resolve(fileURLToPath(import.meta.url));
+const isCLI = indexFilePath.includes(process.argv[1]);
+
+if (isCLI) {
+  runCLI();
 }
 
-if (!type) {
-  console.error('Missing argument: --type=<type>');
-  process.exit(1);
-}
-
-if (!division_id && !location) {
-  console.error('Missing argument: --division_id=<id> or --location=<address>');
-  process.exit(1);
-}
-
-console.log(`Creating extract for ${theme}/${type}`);
-
-const division = location
-  ? await findDivision(location)
-  : await getDivisionById(division_id);
-
-if (!division) {
-  console.error(`Division "${location || division_id}" not found`);
-  process.exit(1);
-}
-
-console.log(`Found division: ${division.name}`);
-console.log(`Creating extract for ${division.name}`);
-await createParquetExtract(division.geometry_geojson, theme, type, filePath);
-console.log(`Created extract for ${division.name} at ${filePath}`);
-db.close();
+export default fetchOverture;
