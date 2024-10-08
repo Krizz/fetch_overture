@@ -217,6 +217,10 @@ const fetchOverture = async ({ location, theme, type, outputFilePath }) => {
     );
   }
 
+  if (!outputFilePath) {
+    throw new Error('Missing output file path');
+  }
+
   const isGERS = isGERSId(location);
   const division = isGERS
     ? await getDivisionById(location)
