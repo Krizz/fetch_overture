@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const db = new duckdb.Database(':memory:');
-const OVERTURE_VERSION = process.env.OVERTURE_VERSION ?? '2024-08-20.0';
+const OVERTURE_VERSION = process.env.OVERTURE_VERSION ?? '2024-10-23.0';
 
 const isGERSId = str => /^[a-f0-9]{32}$/.test(str);
 
