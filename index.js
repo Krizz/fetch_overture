@@ -140,7 +140,7 @@ export const getDivisionById = async id => {
     subtype,
     class,
     ST_ASGeoJSON(geometry) AS geometry_geojson
-    FROM read_parquet('s3://overturemaps-us-west-2/release/2024-07-22.0/theme=divisions/type=division_area/*.parquet')
+    FROM read_parquet('s3://overturemaps-us-west-2/release/${OVERTURE_VERSION}/theme=divisions/type=division_area/*.parquet')
     WHERE id = '${id}'
     LIMIT 1;
   `;
