@@ -247,7 +247,10 @@ const fetchOverture = async ({ location, theme, type, outputFilePath }) => {
 
 const indexFilePath = resolve(fileURLToPath(import.meta.url));
 const isCLI = indexFilePath.includes(process.argv[1]);
+const isNpx = process.env._ && process.env._.includes('npx');
 
-runCLI();
+if (isCLI || isNpx) {
+  runCLI();
+}
 
 export default fetchOverture;
