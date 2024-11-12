@@ -5,9 +5,35 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const db = new duckdb.Database(':memory:');
-const OVERTURE_VERSION = process.env.OVERTURE_VERSION ?? '2024-10-23.0';
+const LAST_KNOWN_OVERTURE_VERSION = '2024-10-23.0';
 
 const isGERSId = str => /^[a-f0-9]{32}$/.test(str);
+
+const fetchLatestOvertureVersion = async () => {
+  try {
+    const url = 'https://docs.overturemaps.org/getting-data/';
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(15000)
+    });
+    const html = await response.text();
+    const match = html.match(/<span\s+class="token plain">([^<]*)\/<\/span>/);
+
+    if (match) {
+      return match[1];
+    } else {
+      throw new Error('No overture version found');
+    }
+  } catch (error) {
+    console.error(
+      `Error fetching overture version, falling back to last known version:${LAST_KNOWN_OVERTURE_VERSION}`
+    );
+    return LAST_KNOWN_OVERTURE_VERSION;
+  }
+};
+
+const OVERTURE_VERSION =
+  process.env.OVERTURE_VERSION ?? (await fetchLatestOvertureVersion());
+console.log(`Overture version: ${OVERTURE_VERSION}`);
 
 const queryDuckDB = sql =>
   new Promise((resolve, reject) => {
